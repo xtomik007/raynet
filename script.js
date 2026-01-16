@@ -3,121 +3,110 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveIT
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 const canvasSig = document.getElementById("signature");
-const signaturePad = new SignaturePad(canvasSig, { backgroundColor: 'rgba(255, 255, 255, 0)', penColor: 'black' });
+const signaturePad = new SignaturePad(canvasSig);
 
-let selectedPoint = { x: 50, y: 150 };
 let pdfViewport = null;
+let pdfScale = 1;
+// Predvolená poloha, ak by nikto neklikol
+let pdfPos = { x: 50, y: 50 };
 
-function resizeCanvas() {
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvasSig.width = canvasSig.offsetWidth * ratio;
-    canvasSig.height = canvasSig.offsetHeight * ratio;
-    canvasSig.getContext("2d").scale(ratio, ratio);
-    signaturePad.clear();
-}
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
-
-// 1. Zobrazenie náhľadu
+// 1. Náhľad a získanie mierky PDF
 async function loadPdfPreview() {
     const file = document.getElementById('pdfFile').files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        const loadingTask = pdfjsLib.getDocument({data: typedarray});
-        const pdf = await loadingTask.promise;
-        const page = await pdf.getPage(1);
-        
-        const canvasPreview = document.getElementById('pdfPreviewCanvas');
-        const context = canvasPreview.getContext('2d');
-        pdfViewport = page.getViewport({scale: 1.5});
-        canvasPreview.height = pdfViewport.height;
-        canvasPreview.width = pdfViewport.width;
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    
+    const canvasPreview = document.getElementById('pdfPreviewCanvas');
+    const context = canvasPreview.getContext('2d');
+    
+    // Získame rozmery PDF strany
+    pdfViewport = page.getViewport({scale: 1.0}); 
+    
+    // Vykreslíme náhľad (prispôsobený šírke displeja)
+    const displayScale = canvasPreview.parentNode.clientWidth / pdfViewport.width;
+    const visualViewport = page.getViewport({scale: displayScale});
+    
+    canvasPreview.width = visualViewport.width;
+    canvasPreview.height = visualViewport.height;
 
-        await page.render({canvasContext: context, viewport: pdfViewport}).promise;
+    await page.render({canvasContext: context, viewport: visualViewport}).promise;
 
-        const handlePointer = (e) => {
-            const rect = canvasPreview.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const scaleX = canvasPreview.width / rect.width;
-            const scaleY = canvasPreview.height / rect.height;
-            const clickX = (clientX - rect.left) * scaleX;
-            const clickY = (clientY - rect.top) * scaleY;
+    // Kliknutie do náhľadu
+    canvasPreview.onclick = (e) => {
+        const rect = canvasPreview.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
 
-            selectedPoint.x = clickX / 1.5; 
-            selectedPoint.y = (pdfViewport.height - clickY) / 1.5; 
+        // PREPOČET: pixely na PDF body
+        pdfPos.x = (x / visualViewport.width) * pdfViewport.width;
+        // PDF má 0 vľavo DOLE, preto musíme Y otočiť
+        pdfPos.y = pdfViewport.height - ((y / visualViewport.height) * pdfViewport.height);
 
-            const marker = document.getElementById('signatureMarker');
-            marker.style.left = (clientX - rect.left + canvasPreview.offsetLeft) + 'px';
-            marker.style.top = (clientY - rect.top + canvasPreview.offsetTop) + 'px';
-            marker.style.display = 'block';
-        };
-        canvasPreview.onmousedown = handlePointer;
-        canvasPreview.ontouchstart = handlePointer;
+        const marker = document.getElementById('signatureMarker');
+        marker.style.left = x + 'px';
+        marker.style.top = y + 'px';
+        marker.style.display = 'block';
     };
-    reader.readAsArrayBuffer(file);
 }
 
 function clearSignature() { signaturePad.clear(); }
 
-// 2. Podpísanie a odoslanie
+// 2. Podpísanie (pôvodná funkčná metóda s novými súradnicami)
 async function signPdf() {
-    const file = document.getElementById('pdfFile').files[0];
-    if (!file || signaturePad.isEmpty()) return alert("Chýba PDF alebo podpis!");
-
+    const pdfFileInput = document.getElementById("pdfFile");
     const name = document.getElementById("signerName").value;
     const targetEmail = document.getElementById("targetEmail").value;
-    if(!name || !targetEmail) return alert("Vyplňte meno a e-mail!");
+
+    if (!pdfFileInput.files[0] || signaturePad.isEmpty()) return alert("Chýba PDF alebo podpis!");
 
     const submitBtn = document.getElementById("submitBtn");
     submitBtn.disabled = true;
     submitBtn.innerText = "Odosielam...";
 
-    const reader = new FileReader();
-    reader.onload = async function() {
-        try {
-            const pdfDoc = await PDFLib.PDFDocument.load(this.result);
-            const firstPage = pdfDoc.getPages()[0];
+    try {
+        const pdfBytes = await pdfFileInput.files[0].arrayBuffer();
+        const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+        const firstPage = pdfDoc.getPages()[0];
 
-            const pngData = signaturePad.toDataURL("image/png");
-            const pngImage = await pdfDoc.embedPng(pngData);
+        const pngData = signaturePad.toDataURL("image/png");
+        const pngImage = await pdfDoc.embedPng(pngData);
 
-            firstPage.drawImage(pngImage, {
-                x: selectedPoint.x,
-                y: selectedPoint.y - 30,
-                width: 120,
-                height: 50
-            });
-            
-            const dateStr = new Date().toLocaleString('sk-SK');
-            firstPage.drawText(`${name} (${dateStr})`, { x: selectedPoint.x, y: selectedPoint.y + 25, size: 9 });
+        // Použitie prepočítaných súradníc pdfPos
+        firstPage.drawImage(pngImage, {
+            x: pdfPos.x,
+            y: pdfPos.y - 40, // mierny posun, aby bol podpis pod textom
+            width: 130,
+            height: 60
+        });
 
-            const signedPdfBytes = await pdfDoc.save();
-            
-            // Konverzia na Base64
-            const base64Final = btoa(String.fromCharCode.apply(null, new Uint8Array(signedPdfBytes)));
+        firstPage.drawText(name, {
+            x: pdfPos.x,
+            y: pdfPos.y + 25,
+            size: 10
+        });
 
-            await fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify({
-                    pdf: base64Final,
-                    filename: `Vykaz_${name.replace(/\s+/g, '_')}.pdf`,
-                    toEmail: targetEmail,
-                    signer: name
-                })
-            });
+        const signedPdfBytes = await pdfDoc.save();
+        const base64 = btoa(new Uint8Array(signedPdfBytes).reduce((data, byte) => data + String.fromCharCode(byte), ''));
 
-            alert("Výkaz odoslaný!");
-            location.reload();
-        } catch (err) {
-            console.error(err);
-            alert("Chyba: " + err.message);
-            submitBtn.disabled = false;
-        }
-    };
-    reader.readAsArrayBuffer(file);
+        await fetch(GAS_URL, {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify({
+                pdf: base64,
+                filename: `Vykaz_${name.replace(/\s+/g, '_')}.pdf`,
+                toEmail: targetEmail,
+                signer: name
+            })
+        });
+
+        alert("Hotovo! Výkaz bol odoslaný.");
+        location.reload();
+    } catch (err) {
+        alert("Chyba: " + err.message);
+        submitBtn.disabled = false;
+    }
 }
