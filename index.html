@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="sk">
-<script src="app.js?v=1.0.1"></script>
 <head>
   <meta charset="UTF-8">
   <title>Podpis Výkazu BlueMed</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #f4f7f6; }
     .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -31,7 +29,7 @@
   <label>3. Údaje o odoslaní:</label>
   <input type="email" id="targetEmail" placeholder="E-mail zákazníka">
   <input type="text" id="signerName" placeholder="Meno podpisujúceho (Technik)">
-  <input type="text" id="role" placeholder="Funkcia (napr. Servisný technik)" value="Servisný technik">
+  <input type="text" id="role" placeholder="Funkcia" value="Servisný technik">
 
   <label>4. Podpis:</label>
   <canvas id="signature"></canvas>
@@ -43,9 +41,20 @@
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=1.0.1"></script>
-<script src="app.js"></script>
+
+<script src="app.js?v=999"></script>
+
+<script>
+  // EXTRA POISTKA: Ak tam ten Service Worker stále je, tento kód ho zabije priamo z HTML
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+      for(let registration of registrations) {
+        registration.unregister();
+        console.log("Service Worker odstránený.");
+      }
+    });
+  }
+</script>
+
 </body>
 </html>
-
-
