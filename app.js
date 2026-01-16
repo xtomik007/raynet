@@ -111,3 +111,4 @@ async function signPdf() {
         submitBtn.innerText = "Podpísať a Odoslať";
     }
 }
+
