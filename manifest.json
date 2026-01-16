@@ -1,0 +1,17 @@
+{
+  "name": "Raynet Podpisovač Výkazov",
+  "short_name": "Podpis",
+  "description": "Aplikácia na podpisovanie PDF výkazov a synchronizáciu s Raynet CRM.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/588/588395.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
