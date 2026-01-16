@@ -1,5 +1,6 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
 
+// Inicializácia PDF.js workera
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 const canvasSig = document.getElementById("signature");
@@ -9,9 +10,9 @@ const signaturePad = new SignaturePad(canvasSig, {
 });
 
 let selectedPoint = { x: 50, y: 150 };
-let pdfFileBytes = null; // Tu budeme mať Uint8Array
 let pdfViewport = null;
 
+// Úprava veľkosti canvasu
 function resizeCanvas() {
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
     canvasSig.width = canvasSig.offsetWidth * ratio;
@@ -22,15 +23,14 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
+// 1. Zobrazenie náhľadu
 async function loadPdfPreview() {
-    const file = document.getElementById('pdfFile').files[0];
+    const fileInput = document.getElementById('pdfFile');
+    const file = fileInput.files[0];
     if (!file) return;
 
-    // FIX: Uložíme ako Uint8Array, aby buffer nezmizol
     const buffer = await file.arrayBuffer();
-    pdfFileBytes = new Uint8Array(buffer);
-    
-    const loadingTask = pdfjsLib.getDocument({data: pdfFileBytes});
+    const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(buffer)});
     const pdf = await loadingTask.promise;
     
     const page = await pdf.getPage(1);
@@ -69,8 +69,10 @@ async function loadPdfPreview() {
 
 function clearSignature() { signaturePad.clear(); }
 
+// 2. Podpísanie a odoslanie
 async function signPdf() {
-    if (!pdfFileBytes || signaturePad.isEmpty()) {
+    const fileInput = document.getElementById('pdfFile');
+    if (!fileInput.files[0] || signaturePad.isEmpty()) {
         alert("Nahrajte PDF a kliknite na miesto v náhľade!");
         return;
     }
@@ -81,16 +83,20 @@ async function signPdf() {
 
     const submitBtn = document.getElementById("submitBtn");
     submitBtn.disabled = true;
-    submitBtn.innerText = "Odosielam...";
+    submitBtn.innerText = "Spracovávam...";
 
     try {
-        // Pracujeme priamo s Uint8Array, ktorý je stabilný
-        const pdfDoc = await PDFLib.PDFDocument.load(pdfFileBytes);
+        // ZÍSKAME ČERSTVÉ DÁTA PRIAMO Z INPUTU (rieši chybu Header Not Found)
+        const file = fileInput.files[0];
+        const freshBuffer = await file.arrayBuffer();
+        
+        const pdfDoc = await PDFLib.PDFDocument.load(freshBuffer);
         const firstPage = pdfDoc.getPages()[0];
 
         const pngData = signaturePad.toDataURL("image/png");
         const pngImage = await pdfDoc.embedPng(pngData);
 
+        // Vloženie podpisu
         firstPage.drawImage(pngImage, {
             x: selectedPoint.x,
             y: selectedPoint.y - 30,
@@ -102,13 +108,20 @@ async function signPdf() {
         firstPage.drawText(`${name} (${dateStr})`, { x: selectedPoint.x, y: selectedPoint.y + 25, size: 9 });
 
         const signedPdfBytes = await pdfDoc.save();
-        const base64 = btoa(new Uint8Array(signedPdfBytes).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+        
+        // Base64 prevod
+        const binary = new Uint8Array(signedPdfBytes);
+        let base64 = "";
+        for (let i = 0; i < binary.length; i++) {
+            base64 += String.fromCharCode(binary[i]);
+        }
+        const base64Final = btoa(base64);
 
         await fetch(GAS_URL, {
             method: "POST",
             mode: "no-cors",
             body: JSON.stringify({
-                pdf: base64,
+                pdf: base64Final,
                 filename: `Vykaz_${name.replace(/\s+/g, '_')}.pdf`,
                 toEmail: targetEmail,
                 signer: name
