@@ -1,5 +1,5 @@
 // KONFIGURÁCIA - Použite váš posledný funkčný link
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec"
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
 const canvas = document.getElementById("signature");
 const signaturePad = new SignaturePad(canvas);
 
@@ -111,4 +111,5 @@ async function signPdf() {
         submitBtn.innerText = "Podpísať a Odoslať";
     }
 }
+
 
