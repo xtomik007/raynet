@@ -73,6 +73,7 @@ function clearSignature() { signaturePad.clear(); }
 
 // 2. Podpísanie a odoslanie
 async function signPdf() {
+    // 1. Kontrola, či máme dáta a podpis
     if (!pdfFileBytes || signaturePad.isEmpty()) {
         alert("Nahrajte PDF a kliknite na miesto v náhľade!");
         return;
@@ -87,13 +88,16 @@ async function signPdf() {
     submitBtn.innerText = "Odosielam...";
 
     try {
-        const pdfDoc = await PDFLib.PDFDocument.load(pdfFileBytes);
+        // OPRAVA: Vytvoríme kópiu ArrayBufferu, aby sme sa vyhli chybe "detached ArrayBuffer"
+        const pdfCopy = pdfFileBytes.slice(0); 
+        
+        const pdfDoc = await PDFLib.PDFDocument.load(pdfCopy);
         const firstPage = pdfDoc.getPages()[0];
 
         const pngData = signaturePad.toDataURL("image/png");
         const pngImage = await pdfDoc.embedPng(pngData);
 
-        // Vloženie podpisu (v PDF bodoch)
+        // Vloženie podpisu a mena
         firstPage.drawImage(pngImage, {
             x: selectedPoint.x,
             y: selectedPoint.y - 30,
@@ -101,11 +105,18 @@ async function signPdf() {
             height: 50
         });
         
-        firstPage.drawText(name, { x: selectedPoint.x, y: selectedPoint.y + 25, size: 9 });
+        // Pridáme aj dátum podpisu pre lepšiu evidenciu BlueMed
+        const dateStr = new Date().toLocaleString('sk-SK');
+        firstPage.drawText(`${name} (${dateStr})`, { 
+            x: selectedPoint.x, 
+            y: selectedPoint.y + 25, 
+            size: 9 
+        });
 
         const signedPdfBytes = await pdfDoc.save();
         const base64 = btoa(new Uint8Array(signedPdfBytes).reduce((data, byte) => data + String.fromCharCode(byte), ''));
 
+        // ODOSLANIE NA GOOGLE SCRIPT
         await fetch(GAS_URL, {
             method: "POST",
             mode: "no-cors",
@@ -120,7 +131,8 @@ async function signPdf() {
         alert("Výkaz bol úspešne odoslaný!");
         location.reload();
     } catch (err) {
-        alert("Chyba: " + err.message);
+        console.error(err);
+        alert("Chyba pri spracovaní: " + err.message);
         submitBtn.disabled = false;
         submitBtn.innerText = "Podpísať a Odoslať";
     }
