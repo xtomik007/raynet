@@ -1,78 +1,91 @@
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
+let selectedPoint = { x: 50, y: 150, pageIndex: 0 };
+let pdfDocLib = null;
+let pdfFileBytes = null;
 
-const canvas = document.getElementById("signature");
-const signaturePad = new SignaturePad(canvas);
+// NAČÍTANIE NÁHĽADU PDF
+async function loadPdfPreview() {
+    const file = document.getElementById('pdfFile').files[0];
+    if (!file) return;
 
-// Responsivita canvasu
-function resizeCanvas() {
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvas.width = canvas.offsetWidth * ratio;
-    canvas.height = canvas.offsetHeight * ratio;
-    canvas.getContext("2d").scale(ratio, ratio);
-    signaturePad.clear(); 
-}
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+    pdfFileBytes = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({data: pdfFileBytes});
+    const pdf = await loadingTask.promise;
+    
+    // Zobrazíme zatiaľ 1. stranu (možno neskôr pridať prepínač strán)
+    const page = await pdf.getPage(1);
+    const canvas = document.getElementById('pdfPreviewCanvas');
+    const context = canvas.getContext('2d');
+    const viewport = page.getViewport({scale: 1.0});
 
-function clearSignature() { 
-    signaturePad.clear(); 
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    await page.render({canvasContext: context, viewport: viewport}).promise;
+
+    // Kliknutie do náhľadu
+    canvas.onclick = function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // Uložíme súradnice pre pdf-lib (Y je v PDF zdola nahor)
+        selectedPoint.x = clickX;
+        selectedPoint.y = viewport.height - clickY; 
+
+        // Zobrazíme značku
+        const marker = document.getElementById('signatureMarker');
+        marker.style.left = clickX + 'px';
+        marker.style.top = clickY + 'px';
+        marker.style.display = 'block';
+    };
 }
 
 async function signPdf() {
-    const pdfFileInput = document.getElementById("pdfFile");
-    const targetEmail = document.getElementById("targetEmail").value;
-    const clientName = document.getElementById("clientName").value;
-    const name = document.getElementById("signerName").value;
-    const role = document.getElementById("role").value;
-
-    if (!pdfFileInput.files[0] || signaturePad.isEmpty() || !targetEmail || !name || !clientName) {
-        alert("Prosím vyplňte všetky polia, nahrajte PDF a pridajte podpis.");
+    if (!pdfFileBytes || signaturePad.isEmpty()) {
+        alert("Nahrajte PDF a kliknite do náhľadu na miesto podpisu!");
         return;
     }
 
     const submitBtn = document.getElementById("submitBtn");
     submitBtn.disabled = true;
-    submitBtn.innerText = "Spracovávam a odosielam...";
+    submitBtn.innerText = "Generujem...";
 
     try {
-        const pdfFile = pdfFileInput.files[0];
-        const pdfBytes = await pdfFile.arrayBuffer();
-        const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-        const firstPage = pdfDoc.getPages()[0];
-        
-        // Príprava podpisu
+        const pdfDoc = await PDFLib.PDFDocument.load(pdfFileBytes);
+        const pages = pdfDoc.getPages();
+        const firstPage = pages[0]; // Tu môžeme neskôr doplniť výber strany
+
         const pngData = signaturePad.toDataURL("image/png");
         const pngImage = await pdfDoc.embedPng(pngData);
 
-        // Vloženie textu a podpisu (pozícia x=50, y=70)
-        firstPage.drawText(`${name} - ${role}`, { x: 50, y: 70, size: 10 });
-        firstPage.drawImage(pngImage, { x: 50, y: 80, width: 150, height: 60 });
+        // Vložíme podpis presne tam, kde technik klikol
+        firstPage.drawImage(pngImage, {
+            x: selectedPoint.x,
+            y: selectedPoint.y - 40, // Posun, aby stred podpisu bol pod prstom
+            width: 150,
+            height: 60
+        });
 
         const signedPdfBytes = await pdfDoc.save();
-        
-        // Prevod do Base64
         const base64 = btoa(new Uint8Array(signedPdfBytes).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-        
-        // Odoslanie do GAS (len pre mail)
+
+        // ODOSLANIE
         await fetch(GAS_URL, {
             method: "POST",
             mode: "no-cors",
             body: JSON.stringify({
                 pdf: base64,
-                filename: `Vykaz_${clientName.replace(/\s+/g, '_')}.pdf`,
-                clientName: clientName,
-                signer: name,
-                toEmail: targetEmail
+                filename: `Vykaz_BlueMed.pdf`,
+                toEmail: document.getElementById("targetEmail").value,
+                clientName: "BlueMed Servis"
             })
         });
-        
-        alert("Výkaz bol úspešne podpísaný a odoslaný na e-mail.");
-        location.reload(); 
 
+        alert("Podpísané a odoslané!");
+        location.reload();
     } catch (err) {
         console.error(err);
-        alert("Nastala chyba. Skontrolujte konzolu.");
+        alert("Chyba: " + err.message);
         submitBtn.disabled = false;
-        submitBtn.innerText = "Podpísať a Odoslať";
     }
 }
