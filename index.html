@@ -3,25 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <title>BlueMed - Podpis Výkazu</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
-    body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #f4f7f6; color: #333; }
+    body { font-family: 'Segoe UI', sans-serif; margin: 15px; background: #f4f7f6; color: #333; touch-action: manipulation; }
     .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
     
-    /* Štýl pre kontajner s náhľadom PDF */
+    /* Kontajner pre náhľad PDF */
     #pdfContainer { 
       position: relative; 
       border: 2px solid #333; 
       overflow: auto; 
       background: #525659; 
-      max-height: 500px; 
+      max-height: 450px; 
       margin: 15px 0;
       cursor: crosshair;
-      text-align: center;
+      touch-action: none; /* Dôležité pre mobilné klikanie */
     }
     canvas#pdfPreviewCanvas { max-width: 100%; height: auto; display: block; margin: 0 auto; }
     
-    /* Červená bodka - značka polohy */
     #signatureMarker { 
       position: absolute; 
       width: 20px; 
@@ -36,27 +35,26 @@
     }
 
     /* Podpisový pad */
-    #signature { border: 1px solid #ddd; width: 100%; height: 150px; background: #fff; margin-top: 10px; touch-action: none; }
+    .sig-wrapper { border: 1px solid #ddd; background: #fff; margin-top: 10px; width: 100%; height: 200px; }
+    #signature { width: 100%; height: 100%; touch-action: none; }
     
-    input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
-    button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; font-size: 1rem; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
+    input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
+    button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+    button:disabled { background: #ccc; }
     .secondary { background: #6c757d; }
     label { font-weight: bold; display: block; margin-top: 10px; font-size: 0.9em; }
-    
-    .instruction { font-size: 0.85em; color: #666; font-style: italic; margin-bottom: 5px; }
+    .instruction { font-size: 0.8em; color: #666; font-style: italic; }
   </style>
 </head>
 <body>
 
 <div class="card">
-  <h2 style="text-align:center; color:#0056b3;">BlueMed Servis</h2>
+  <h2 style="text-align:center; color:#0056b3; margin-top:0;">BlueMed Servis</h2>
   
   <label>1. Nahrajte PDF výkaz:</label>
   <input type="file" id="pdfFile" accept="application/pdf" onchange="loadPdfPreview()">
 
-  <label>2. Určite miesto podpisu:</label>
-  <p class="instruction">Kliknite/ťuknite do náhľadu nižšie presne tam, kde sa má zobraziť podpis.</p>
+  <label>2. Miesto podpisu (kliknite do PDF):</label>
   <div id="pdfContainer">
     <canvas id="pdfPreviewCanvas"></canvas>
     <div id="signatureMarker"></div>
@@ -64,22 +62,21 @@
 
   <label>3. Údaje o odoslaní:</label>
   <input type="email" id="targetEmail" placeholder="E-mail zákazníka">
-  <input type="text" id="signerName" placeholder="Meno podpisujúceho">
+  <input type="text" id="signerName" placeholder="Meno technika / zákazníka">
   
-  <label>4. Váš podpis (rukou):</label>
-  <canvas id="signature"></canvas>
+  <label>4. Podpis:</label>
+  <div class="sig-wrapper">
+    <canvas id="signature"></canvas>
+  </div>
   <button type="button" class="secondary" onclick="clearSignature()">Vymazať podpis</button>
 
-  <hr style="margin:20px 0;">
-  
-  <button id="submitBtn" onclick="signPdf()">Podpísať a Odoslať Výkaz</button>
+  <button id="submitBtn" onclick="signPdf()">Podpísať a Odoslať</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-
-<script src="script.js?v=2.0"></script>
+<script src="script.js?v=3.0"></script>
 
 </body>
 </html>
