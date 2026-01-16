@@ -1,6 +1,5 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
 
-// Inicializácia PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 const canvasSig = document.getElementById("signature");
@@ -10,10 +9,9 @@ const signaturePad = new SignaturePad(canvasSig, {
 });
 
 let selectedPoint = { x: 50, y: 150 };
-let pdfFileBytes = null;
+let pdfFileBytes = null; // Tu budeme mať Uint8Array
 let pdfViewport = null;
 
-// Úprava veľkosti canvasu pre mobilné zariadenia
 function resizeCanvas() {
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
     canvasSig.width = canvasSig.offsetWidth * ratio;
@@ -24,12 +22,14 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-// 1. Načítanie náhľadu PDF
 async function loadPdfPreview() {
     const file = document.getElementById('pdfFile').files[0];
     if (!file) return;
 
-    pdfFileBytes = await file.arrayBuffer();
+    // FIX: Uložíme ako Uint8Array, aby buffer nezmizol
+    const buffer = await file.arrayBuffer();
+    pdfFileBytes = new Uint8Array(buffer);
+    
     const loadingTask = pdfjsLib.getDocument({data: pdfFileBytes});
     const pdf = await loadingTask.promise;
     
@@ -37,13 +37,12 @@ async function loadPdfPreview() {
     const canvasPreview = document.getElementById('pdfPreviewCanvas');
     const context = canvasPreview.getContext('2d');
     
-    pdfViewport = page.getViewport({scale: 1.5}); // Väčšia mierka pre lepšiu kvalitu náhľadu
+    pdfViewport = page.getViewport({scale: 1.5});
     canvasPreview.height = pdfViewport.height;
     canvasPreview.width = pdfViewport.width;
 
     await page.render({canvasContext: context, viewport: pdfViewport}).promise;
 
-    // Detekcia kliknutia (funguje pre myš aj dotyk)
     const handlePointer = (e) => {
         const rect = canvasPreview.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -55,7 +54,6 @@ async function loadPdfPreview() {
         const clickX = (clientX - rect.left) * scaleX;
         const clickY = (clientY - rect.top) * scaleY;
 
-        // Prepočet na PDF body (zdola nahor)
         selectedPoint.x = clickX / (pdfViewport.scale / 1.0);
         selectedPoint.y = (pdfViewport.height - clickY) / (pdfViewport.scale / 1.0); 
 
@@ -71,9 +69,7 @@ async function loadPdfPreview() {
 
 function clearSignature() { signaturePad.clear(); }
 
-// 2. Podpísanie a odoslanie
 async function signPdf() {
-    // 1. Kontrola, či máme dáta a podpis
     if (!pdfFileBytes || signaturePad.isEmpty()) {
         alert("Nahrajte PDF a kliknite na miesto v náhľade!");
         return;
@@ -88,16 +84,13 @@ async function signPdf() {
     submitBtn.innerText = "Odosielam...";
 
     try {
-        // OPRAVA: Vytvoríme kópiu ArrayBufferu, aby sme sa vyhli chybe "detached ArrayBuffer"
-        const pdfCopy = pdfFileBytes.slice(0); 
-        
-        const pdfDoc = await PDFLib.PDFDocument.load(pdfCopy);
+        // Pracujeme priamo s Uint8Array, ktorý je stabilný
+        const pdfDoc = await PDFLib.PDFDocument.load(pdfFileBytes);
         const firstPage = pdfDoc.getPages()[0];
 
         const pngData = signaturePad.toDataURL("image/png");
         const pngImage = await pdfDoc.embedPng(pngData);
 
-        // Vloženie podpisu a mena
         firstPage.drawImage(pngImage, {
             x: selectedPoint.x,
             y: selectedPoint.y - 30,
@@ -105,18 +98,12 @@ async function signPdf() {
             height: 50
         });
         
-        // Pridáme aj dátum podpisu pre lepšiu evidenciu BlueMed
         const dateStr = new Date().toLocaleString('sk-SK');
-        firstPage.drawText(`${name} (${dateStr})`, { 
-            x: selectedPoint.x, 
-            y: selectedPoint.y + 25, 
-            size: 9 
-        });
+        firstPage.drawText(`${name} (${dateStr})`, { x: selectedPoint.x, y: selectedPoint.y + 25, size: 9 });
 
         const signedPdfBytes = await pdfDoc.save();
         const base64 = btoa(new Uint8Array(signedPdfBytes).reduce((data, byte) => data + String.fromCharCode(byte), ''));
 
-        // ODOSLANIE NA GOOGLE SCRIPT
         await fetch(GAS_URL, {
             method: "POST",
             mode: "no-cors",
@@ -132,7 +119,7 @@ async function signPdf() {
         location.reload();
     } catch (err) {
         console.error(err);
-        alert("Chyba pri spracovaní: " + err.message);
+        alert("Chyba: " + err.message);
         submitBtn.disabled = false;
         submitBtn.innerText = "Podpísať a Odoslať";
     }
