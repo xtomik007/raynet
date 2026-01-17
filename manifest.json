@@ -3,15 +3,15 @@
   "name": "BlueMed Singer",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "https://bluemed.sk/wp-content/uploads/2021/03/cropped-favicon-bluemed-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/337/337946.png",
+      "src": "https://bluemed.sk/wp-content/uploads/2021/03/cropped-favicon-bluemed-180x180.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "180x180"
     }
   ],
   "start_url": "podpis.html",
