@@ -8,41 +8,43 @@ const signaturePad = new SignaturePad(canvasSig);
 let pdfPos = { x: 50, y: 50 };
 let pdfDocPoints = { w: 0, h: 0 };
 
-// --- POMOCNÉ FUNKCIE ---
 function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-// Kontrola offline fronty pri štarte
 window.onload = () => { checkOfflineQueue(); };
 
 async function checkOfflineQueue() {
     let queue = JSON.parse(localStorage.getItem('pdf_queue') || '[]');
     if (queue.length > 0 && navigator.onLine) {
-        document.getElementById('offlineNotify').innerText = "Odosielam uložené výkazy...";
         for (let item of queue) { await sendToServers(item); }
         localStorage.removeItem('pdf_queue');
-        document.getElementById('offlineNotify').innerText = "Synchronizované.";
+        document.getElementById('offlineNotify').innerText = "Všetko odoslané.";
         setTimeout(() => document.getElementById('offlineNotify').innerText = "", 3000);
     }
 }
 
-// --- OVLÁDANIE ---
 function openSignature() {
-    if (document.getElementById('signerName').value.length < 3) return alert("Meno zákazníka?");
+    const name = document.getElementById('signerName').value;
+    const title = document.getElementById('signerTitle').value;
+    if (name.length < 3) return alert("Meno zákazníka?");
     if (!validateEmail(document.getElementById('targetEmail').value)) return alert("Email zákazníka?");
     if (!document.getElementById('pdfFile').files[0]) return alert("Chýba PDF!");
-    
+
+    document.getElementById('previewName').innerText = name;
+    document.getElementById('previewTitle').innerText = title || "";
     document.getElementById('sigPopup').style.display = 'flex';
+    
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
     canvasSig.width = canvasSig.offsetWidth * ratio;
     canvasSig.height = canvasSig.offsetHeight * ratio;
     canvasSig.getContext("2d").scale(ratio, ratio);
+    signaturePad.clear();
 }
 
 function clearSig() { signaturePad.clear(); }
 function closeSignature() { document.getElementById('sigPopup').style.display = 'none'; }
 
 async function acceptSignature() {
-    if(signaturePad.isEmpty()) return alert("Chýba podpis!");
+    if(signaturePad.isEmpty()) return alert("Podpíšte sa!");
     document.getElementById('sigPopup').style.display = 'none';
     document.getElementById('mainForm').style.display = 'none';
     document.getElementById('placementStep').style.display = 'block';
@@ -68,59 +70,47 @@ async function loadPreview() {
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        // PDF súradnice (0,0 je vľavo dole)
         pdfPos.x = (x / canvas.width) * pdfDocPoints.w;
         pdfPos.y = pdfDocPoints.h - ((y / canvas.height) * pdfDocPoints.h);
-        
         const marker = document.getElementById('marker');
         marker.style.left = x + 'px'; marker.style.top = y + 'px'; marker.style.display = 'block';
     };
 }
 
-// --- FINÁLNE GENEROVANIE ---
 async function signAndSend() {
-    const marker = document.getElementById('marker');
-    if (marker.style.display === 'none') return alert("Ťuknite do PDF!");
-
+    if (document.getElementById('marker').style.display === 'none') return alert("Ťuknite do PDF!");
     const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true; submitBtn.innerText = "Generujem PDF...";
+    submitBtn.disabled = true; submitBtn.innerText = "Spracúvam...";
 
     try {
         const file = document.getElementById('pdfFile').files[0];
         const pdfDoc = await PDFLib.PDFDocument.load(await file.arrayBuffer());
         const page = pdfDoc.getPages()[0];
         const pngImage = await pdfDoc.embedPng(signaturePad.toDataURL());
-        
-        // --- LOGIKA UMIESTNENIA (Podpis vyššie, meno pod ním) ---
-        
-        // 1. PODPIS (Obrázok)
-        // Stred podpisu bude presne na mieste kliknutia (pdfPos.y)
-        // Posúvame ho o polovicu jeho výšky (30px) hore a dole
-        const signatureHeight = 60;
-        const ySignatureTop = pdfPos.y + (signatureHeight / 2); // Horná hrana
-        const ySignatureBottom = pdfPos.y - (signatureHeight / 2); // Spodná hrana
 
+        const sigW = 120;
+        const sigH = 60;
+        const padding = 15; // Medzera od kliknutého bodu
+
+        // 1. PODPIS (Vľavo od kliknutého bodu)
         page.drawImage(pngImage, { 
-            x: pdfPos.x, 
-            y: ySignatureBottom, 
-            width: 120, 
-            height: signatureHeight 
+            x: pdfPos.x - sigW - padding, 
+            y: pdfPos.y - (sigH / 2), 
+            width: sigW, height: sigH 
         });
 
         const name = document.getElementById('signerName').value;
         const title = document.getElementById('signerTitle').value;
 
-        // 2. MENO (15px pod spodnou hranou podpisu)
-        const yMeno = ySignatureBottom - 15;
-        page.drawText(name, { x: pdfPos.x, y: yMeno, size: 10 });
+        // 2. TEXTY (Vpravo od kliknutého bodu)
+        const xText = pdfPos.x + padding;
+        const yMeno = pdfPos.y; // Zarovnané na stredovú líniu kliku
 
-        // 3. FUNKCIA (1.25 riadkovanie pod menom = cca 12.5px)
+        page.drawText(name, { x: xText, y: yMeno, size: 10 });
         if (title) {
-            page.drawText(title, { x: pdfPos.x, y: yMeno - 12.5, size: 9 });
+            page.drawText(title, { x: xText, y: yMeno - 12.5, size: 9 });
         }
 
-        // --- GENEROVANIE NÁZVU SÚBORU ---
-        // Získame pôvodný názov bez prípony .pdf a pridáme "_podpisane"
         const originalName = file.name.replace(/\.[^/.]+$/, "");
         const newFileName = `${originalName}_podpisane.pdf`;
 
@@ -139,13 +129,10 @@ async function signAndSend() {
         } else {
             await sendToServers(payload);
         }
-        alert("Odoslané ako: " + newFileName); 
-        location.reload();
-    } catch (e) { 
-        alert("Chyba: " + e.message); 
-        submitBtn.disabled = false; 
-    }
+        alert("Odoslané!"); location.reload();
+    } catch (e) { alert("Chyba: " + e.message); submitBtn.disabled = false; }
 }
+
 async function sendToServers(payload) {
     try {
         await fetch(PHP_URL, {
@@ -156,4 +143,3 @@ async function sendToServers(payload) {
         await fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
     }
 }
-
