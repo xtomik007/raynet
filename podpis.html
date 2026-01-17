@@ -21,11 +21,20 @@
     .sig-col-right { flex: 1; padding: 20px; box-sizing: border-box; }
     #signature { width: 100%; height: 100%; touch-action: none; display: block; }
     
-    /* PDF náhľad */
+    /* PDF náhľad a listovanie */
     #placementStep { display: none; margin-top: 20px; }
     #pdfContainer { position: relative; border: 2px solid #333; overflow: auto; background: #525659; }
     canvas#pdfPreviewCanvas { max-width: 100%; height: auto; display: block; margin: 0 auto; }
     #marker { position: absolute; width: 30px; height: 30px; border: 2px solid red; background: rgba(255,0,0,0.3); border-radius: 50%; display: none; pointer-events: none; transform: translate(-50%, -50%); }
+    
+    /* Navigácia stránok */
+    .pdf-nav { 
+      display: flex; justify-content: space-between; align-items: center; 
+      background: #eee; padding: 10px; border-radius: 5px 5px 0 0; border: 2px solid #333; border-bottom: none;
+    }
+    .pdf-nav button { width: auto; padding: 8px 15px; margin: 0; background: #333; }
+    .page-info { font-weight: bold; font-size: 14px; }
+
     .status-bar { font-size: 12px; text-align: center; margin-bottom: 10px; color: #007bff; font-weight: bold; }
   </style>
 </head>
@@ -64,20 +73,26 @@
 </div>
 
 <div class="card" id="placementStep">
-  <h3>Ťuknite na miesto vloženia:</h3>
+  <h3>Umiestnenie podpisu:</h3>
+  
+  <div class="pdf-nav">
+    <button onclick="prevPage()">⬅️ Späť</button>
+    <div class="page-info">Strana: <span id="pageNum">1</span> / <span id="pageCount">?</span></div>
+    <button onclick="nextPage()">Ďalej ➡️</button>
+  </div>
+
   <div id="pdfContainer">
     <canvas id="pdfPreviewCanvas"></canvas>
     <div id="marker"></div>
   </div>
+  
   <button id="submitBtn" onclick="signAndSend()" style="background:#28a745; margin-top:15px;">Dokončiť a Odoslať</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="script.js?v=2.5"></script>
+<script src="script.js?v=2.6"></script>
 
 </body>
 </html>
-
-
