@@ -3,28 +3,33 @@
   "name": "BlueMed Singer",
   "icons": [
     {
-      "src": "https://bluemed.sk/wp-content/uploads/2021/03/cropped-favicon-bluemed-192x192.png",
+      "src": "icon-192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "https://bluemed.sk/wp-content/uploads/2021/03/cropped-favicon-bluemed-180x180.png",
+      "src": "icon-192.png",
       "type": "image/png",
-      "sizes": "180x180"
+      "sizes": "192x192",
+      "purpose": "maskable"
     }
   ],
   "start_url": "podpis.html",
   "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0054a6",
   "share_target": {
     "action": "podpis.html?shared=1",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
+      "title": "title",
+      "text": "text",
       "files": [
         {
           "name": "pdfFile",
-          "accept": ["application/pdf"]
+          "accept": ["application/pdf", ".pdf"]
         }
       ]
     }
