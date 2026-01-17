@@ -1,112 +1,124 @@
+//const PHP_URL = "https://vas-server.sk/api/send_mail.php";
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 const canvasSig = document.getElementById("signature");
 const signaturePad = new SignaturePad(canvasSig);
-
-let pdfViewport = null;
-let pdfScale = 1;
-// Predvolená poloha, ak by nikto neklikol
 let pdfPos = { x: 50, y: 50 };
+let pdfDocPoints = { w: 0, h: 0 };
 
-// 1. Náhľad a získanie mierky PDF
-async function loadPdfPreview() {
+// --- POMOCNÉ FUNKCIE ---
+function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+
+// --- OFFLINE SYSTÉM ---
+window.addEventListener('load', () => {
+    checkOfflineQueue();
+    const queryParams = new URLSearchParams(window.location.search);
+    if (queryParams.has('pdfFile')) console.log("PDF prijaté cez Share Target");
+});
+
+async function checkOfflineQueue() {
+    let queue = JSON.parse(localStorage.getItem('pdf_queue') || '[]');
+    if (queue.length > 0 && navigator.onLine) {
+        document.getElementById('offlineNotify').innerText = "Synchronizujem výkazy...";
+        for (let item of queue) { await sendToServers(item); }
+        localStorage.removeItem('pdf_queue');
+        document.getElementById('offlineNotify').innerText = "Všetko odoslané.";
+        setTimeout(() => document.getElementById('offlineNotify').innerText = "", 3000);
+    }
+}
+
+// --- FLOW OVLÁDANIE ---
+function openSignature() {
+    if (document.getElementById('signerName').value.length < 3) return alert("Zadajte meno.");
+    if (!validateEmail(document.getElementById('targetEmail').value)) return alert("Chybný email.");
+    if (!document.getElementById('pdfFile').files[0]) return alert("Nahrajte PDF.");
+    
+    document.getElementById('sigPopup').style.display = 'flex';
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvasSig.width = canvasSig.offsetWidth * ratio;
+    canvasSig.height = canvasSig.offsetHeight * ratio;
+    canvasSig.getContext("2d").scale(ratio, ratio);
+}
+
+function clearSig() { signaturePad.clear(); }
+function closeSignature() { document.getElementById('sigPopup').style.display = 'none'; }
+
+async function acceptSignature() {
+    if(signaturePad.isEmpty()) return alert("Podpíšte sa!");
+    document.getElementById('sigPopup').style.display = 'none';
+    document.getElementById('mainForm').style.display = 'none';
+    document.getElementById('placementStep').style.display = 'block';
+    loadPreview();
+}
+
+async function loadPreview() {
     const file = document.getElementById('pdfFile').files[0];
-    if (!file) return;
-
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
-    const pdf = await loadingTask.promise;
+    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
     const page = await pdf.getPage(1);
-    
-    const canvasPreview = document.getElementById('pdfPreviewCanvas');
-    const context = canvasPreview.getContext('2d');
-    
-    // Získame rozmery PDF strany
-    pdfViewport = page.getViewport({scale: 1.0}); 
-    
-    // Vykreslíme náhľad (prispôsobený šírke displeja)
-    const displayScale = canvasPreview.parentNode.clientWidth / pdfViewport.width;
+    const canvas = document.getElementById('pdfPreviewCanvas');
+    const viewport = page.getViewport({scale: 1.0});
+    pdfDocPoints.w = viewport.width; pdfDocPoints.h = viewport.height;
+
+    const displayScale = canvas.parentNode.clientWidth / viewport.width;
     const visualViewport = page.getViewport({scale: displayScale});
-    
-    canvasPreview.width = visualViewport.width;
-    canvasPreview.height = visualViewport.height;
+    canvas.width = visualViewport.width; canvas.height = visualViewport.height;
+    await page.render({canvasContext: canvas.getContext('2d'), viewport: visualViewport}).promise;
 
-    await page.render({canvasContext: context, viewport: visualViewport}).promise;
-
-    // Kliknutie do náhľadu
-    canvasPreview.onclick = (e) => {
-        const rect = canvasPreview.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        // PREPOČET: pixely na PDF body
-        pdfPos.x = (x / visualViewport.width) * pdfViewport.width;
-        // PDF má 0 vľavo DOLE, preto musíme Y otočiť
-        pdfPos.y = pdfViewport.height - ((y / visualViewport.height) * pdfViewport.height);
-
-        const marker = document.getElementById('signatureMarker');
-        marker.style.left = x + 'px';
-        marker.style.top = y + 'px';
-        marker.style.display = 'block';
+    canvas.onclick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+        pdfPos.x = (x / canvas.width) * pdfDocPoints.w;
+        pdfPos.y = pdfDocPoints.h - ((y / canvas.height) * pdfDocPoints.h);
+        const marker = document.getElementById('marker');
+        marker.style.left = x + 'px'; marker.style.top = y + 'px'; marker.style.display = 'block';
     };
 }
 
-function clearSignature() { signaturePad.clear(); }
-
-// 2. Podpísanie (pôvodná funkčná metóda s novými súradnicami)
-async function signPdf() {
-    const pdfFileInput = document.getElementById("pdfFile");
-    const name = document.getElementById("signerName").value;
-    const targetEmail = document.getElementById("targetEmail").value;
-
-    if (!pdfFileInput.files[0] || signaturePad.isEmpty()) return alert("Chýba PDF alebo podpis!");
-
-    const submitBtn = document.getElementById("submitBtn");
-    submitBtn.disabled = true;
-    submitBtn.innerText = "Odosielam...";
+// --- FINÁLNE ODOSLANIE ---
+async function signAndSend() {
+    if (document.getElementById('marker').style.display === 'none') return alert("Ťuknite do PDF!");
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true; submitBtn.innerText = "Spracúvam...";
 
     try {
-        const pdfBytes = await pdfFileInput.files[0].arrayBuffer();
-        const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-        const firstPage = pdfDoc.getPages()[0];
+        const file = document.getElementById('pdfFile').files[0];
+        const pdfDoc = await PDFLib.PDFDocument.load(await file.arrayBuffer());
+        const page = pdfDoc.getPages()[0];
+        const pngImage = await pdfDoc.embedPng(signaturePad.toDataURL());
+        
+        page.drawImage(pngImage, { x: pdfPos.x, y: pdfPos.y - 30, width: 120, height: 60 });
+        const name = document.getElementById('signerName').value;
+        page.drawText(`${name} (${new Date().toLocaleString()})`, { x: pdfPos.x, y: pdfPos.y + 35, size: 10 });
 
-        const pngData = signaturePad.toDataURL("image/png");
-        const pngImage = await pdfDoc.embedPng(pngData);
+        const payload = {
+            pdf: await pdfDoc.saveAsBase64(),
+            filename: `Vykaz_${name.replace(/\s+/g, '_')}.pdf`,
+            toEmail: document.getElementById('targetEmail').value,
+            signer: name
+        };
 
-        // Použitie prepočítaných súradníc pdfPos
-        firstPage.drawImage(pngImage, {
-            x: pdfPos.x,
-            y: pdfPos.y - 40, // mierny posun, aby bol podpis pod textom
-            width: 130,
-            height: 60
+        if (!navigator.onLine) {
+            let queue = JSON.parse(localStorage.getItem('pdf_queue') || '[]');
+            queue.push(payload);
+            localStorage.setItem('pdf_queue', JSON.stringify(queue));
+            alert("Uložené offline!");
+        } else {
+            await sendToServers(payload);
+        }
+        alert("Odoslané!"); location.reload();
+    } catch (e) { alert("Chyba: " + e.message); submitBtn.disabled = false; }
+}
+
+async function sendToServers(payload) {
+    try {
+        await fetch(PHP_URL, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload), signal: AbortSignal.timeout(5000)
         });
-
-        firstPage.drawText(name, {
-            x: pdfPos.x,
-            y: pdfPos.y + 25,
-            size: 10
-        });
-
-        const signedPdfBytes = await pdfDoc.save();
-        const base64 = btoa(new Uint8Array(signedPdfBytes).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-
-        await fetch(GAS_URL, {
-            method: "POST",
-            mode: "no-cors",
-            body: JSON.stringify({
-                pdf: base64,
-                filename: `Vykaz_${name.replace(/\s+/g, '_')}.pdf`,
-                toEmail: targetEmail,
-                signer: name
-            })
-        });
-
-        alert("Hotovo! Výkaz bol odoslaný.");
-        location.reload();
-    } catch (err) {
-        alert("Chyba: " + err.message);
-        submitBtn.disabled = false;
+    } catch (e) {
+        await fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
     }
 }
