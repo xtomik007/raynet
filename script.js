@@ -1,5 +1,5 @@
 const PHP_URL = "https://vas-server.sk/api/send_mail.php";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzMC4LVRrEHK0Q3UVODC8rDWzyh3NDclGOmzEKY2K4uS6Bohf_A0uxt6eAu5HD23_2d/exec";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
@@ -143,3 +143,4 @@ async function sendToServers(payload) {
         await fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
     }
 }
+
