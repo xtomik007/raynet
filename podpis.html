@@ -2,7 +2,7 @@
 <html lang="sk">
 <head>
   <meta charset="UTF-8">
-  <title>BlueMed Singer</title>
+  <title>Bluemed Singer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="manifest" href="manifest.json">
   <style>
@@ -32,10 +32,12 @@
 <div id="offlineNotify" class="status-bar"></div>
 
 <div class="card" id="mainForm">
-  <h2 style="text-align:center; color:#0056b3; margin-top:0;">BlueMed Servis</h2>
-  <label>Údaje technika:</label>
-  <input type="text" id="signerName" placeholder="Meno a priezvisko">
-  <input type="email" id="targetEmail" placeholder="E-mail zákazníka">
+  <h2 style="text-align:center; color:#0056b3; margin-top:0;">Bluemed Servis</h2>
+  <label>Údaje zákazníka:</label>
+  <input type="text" id="signerName" placeholder="Meno a priezvisko zákazníka">
+  <input type="text" id="signerTitle" placeholder="Funkcia (napr. konateľ)">
+  <input type="email" id="targetEmail" placeholder="E-mail na zaslanie výkazu">
+  
   <label>Súbor na podpis:</label>
   <input type="file" id="pdfFile" accept="application/pdf">
   <button onclick="openSignature()">Prejsť k podpisu</button>
@@ -70,3 +72,4 @@
 
 </body>
 </html>
+
