@@ -91,28 +91,42 @@ async function signAndSend() {
         const page = pdfDoc.getPages()[0];
         const pngImage = await pdfDoc.embedPng(signaturePad.toDataURL());
         
-        // 1. PODPIS (Vykreslí sa OD miesta kliku smerom DOLE)
+        // --- LOGIKA UMIESTNENIA (Podpis vyššie, meno pod ním) ---
+        
+        // 1. PODPIS (Obrázok)
+        // Stred podpisu bude presne na mieste kliknutia (pdfPos.y)
+        // Posúvame ho o polovicu jeho výšky (30px) hore a dole
+        const signatureHeight = 60;
+        const ySignatureTop = pdfPos.y + (signatureHeight / 2); // Horná hrana
+        const ySignatureBottom = pdfPos.y - (signatureHeight / 2); // Spodná hrana
+
         page.drawImage(pngImage, { 
             x: pdfPos.x, 
-            y: pdfPos.y - 60, // Spodná hrana je 60 bodov pod klikom
-            width: 120, height: 60 
+            y: ySignatureBottom, 
+            width: 120, 
+            height: signatureHeight 
         });
 
         const name = document.getElementById('signerName').value;
         const title = document.getElementById('signerTitle').value;
 
-        // 2. MENO (75 bodov pod klikom = 15 bodov pod obrázkom)
-        const yMeno = pdfPos.y - 75;
+        // 2. MENO (15px pod spodnou hranou podpisu)
+        const yMeno = ySignatureBottom - 15;
         page.drawText(name, { x: pdfPos.x, y: yMeno, size: 10 });
 
-        // 3. FUNKCIA (o 1.25 riadku nižšie = 12.5 bodu)
+        // 3. FUNKCIA (1.25 riadkovanie pod menom = cca 12.5px)
         if (title) {
             page.drawText(title, { x: pdfPos.x, y: yMeno - 12.5, size: 9 });
         }
 
+        // --- GENEROVANIE NÁZVU SÚBORU ---
+        // Získame pôvodný názov bez prípony .pdf a pridáme "_podpisane"
+        const originalName = file.name.replace(/\.[^/.]+$/, "");
+        const newFileName = `${originalName}_podpisane.pdf`;
+
         const payload = {
             pdf: await pdfDoc.saveAsBase64(),
-            filename: `Vykaz_${name.replace(/\s+/g, '_')}.pdf`,
+            filename: newFileName,
             toEmail: document.getElementById('targetEmail').value,
             signer: name
         };
@@ -125,10 +139,13 @@ async function signAndSend() {
         } else {
             await sendToServers(payload);
         }
-        alert("Odoslané!"); location.reload();
-    } catch (e) { alert("Chyba: " + e.message); submitBtn.disabled = false; }
+        alert("Odoslané ako: " + newFileName); 
+        location.reload();
+    } catch (e) { 
+        alert("Chyba: " + e.message); 
+        submitBtn.disabled = false; 
+    }
 }
-
 async function sendToServers(payload) {
     try {
         await fetch(PHP_URL, {
@@ -139,3 +156,4 @@ async function sendToServers(payload) {
         await fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
     }
 }
+
