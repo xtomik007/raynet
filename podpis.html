@@ -2,23 +2,28 @@
 <html lang="sk">
 <head>
   <meta charset="UTF-8">
-  <title>Bluemed podpis vykazu</title>
+  <title>BlueMed Singer v2.5</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: 'Segoe UI', sans-serif; margin: 15px; background: #f4f7f6; color: #333; }
-    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
     input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
     button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-    button:disabled { background: #ccc; }
     
+    /* Podpisové okno */
     #sigPopup { 
       display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-      background: white; z-index: 1000; flex-direction: column; padding: 20px; box-sizing: border-box;
+      background: white; z-index: 1000; flex-direction: column; padding: 15px; box-sizing: border-box;
     }
-    #signature { border: 2px dashed #ccc; flex-grow: 1; width: 100%; background: #fff; touch-action: none; }
+    .sig-row { display: flex; flex-direction: row; align-items: center; border: 1px solid #ddd; flex-grow: 1; background: #fff; min-height: 250px; }
+    .sig-col-left { flex: 1; border-right: 1px solid #eee; height: 100%; position: relative; }
+    .sig-col-right { flex: 1; padding: 20px; box-sizing: border-box; }
+    #signature { width: 100%; height: 100%; touch-action: none; display: block; }
+    
+    /* PDF náhľad */
     #placementStep { display: none; margin-top: 20px; }
-    #pdfContainer { position: relative; border: 2px solid #333; overflow: auto; background: #525659; text-align: center; }
+    #pdfContainer { position: relative; border: 2px solid #333; overflow: auto; background: #525659; }
     canvas#pdfPreviewCanvas { max-width: 100%; height: auto; display: block; margin: 0 auto; }
     #marker { position: absolute; width: 30px; height: 30px; border: 2px solid red; background: rgba(255,0,0,0.3); border-radius: 50%; display: none; pointer-events: none; transform: translate(-50%, -50%); }
     .status-bar { font-size: 12px; text-align: center; margin-bottom: 10px; color: #007bff; font-weight: bold; }
@@ -30,26 +35,36 @@
 
 <div class="card" id="mainForm">
   <h2 style="text-align:center; color:#0056b3; margin-top:0;">BlueMed Singer</h2>
-  <label>Údaje zákazníka:</label>
+  <label><b>Údaje zákazníka:</b></label>
   <input type="text" id="signerName" placeholder="Meno a priezvisko zákazníka">
-  <input type="text" id="signerTitle" placeholder="Funkcia zákazníka">
-  <input type="email" id="targetEmail" placeholder="E-mail na zaslanie výkazu">
+  <input type="text" id="signerTitle" placeholder="Funkcia (voliteľné)">
+  <input type="email" id="targetEmail" placeholder="E-mail na zaslanie PDF">
   
-  <label>Súbor na podpis:</label>
+  <label><b>Servisný výkaz:</b></label>
   <input type="file" id="pdfFile" accept="application/pdf">
   <button onclick="openSignature()">Prejsť k podpisu</button>
 </div>
 
 <div id="sigPopup">
-  <h3 style="margin-top:0;">Podpis zákazníka:</h3>
-  <canvas id="signature"></canvas>
-  <button onclick="acceptSignature()">Potvrdiť</button>
-  <button onclick="clearSig()" style="background:#6c757d;">Vymazať</button>
-  <button onclick="closeSignature()" style="background:#aaa;">Zrušiť</button>
+  <h3 style="margin:0 0 10px 0;">Podpis zákazníka:</h3>
+  <div class="sig-row">
+    <div class="sig-col-left">
+      <canvas id="signature"></canvas>
+    </div>
+    <div class="sig-col-right" id="sigPreviewText">
+      <div id="previewName" style="font-weight: bold; font-size: 18px;"></div>
+      <div id="previewTitle" style="font-size: 14px; color: #666; margin-top: 5px;"></div>
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; margin-top: 15px;">
+    <button onclick="acceptSignature()" style="flex: 2; background: #28a745;">Potvrdiť</button>
+    <button onclick="clearSig()" style="flex: 1; background:#6c757d;">Zmazať</button>
+    <button onclick="closeSignature()" style="flex: 1; background:#aaa;">Zrušiť</button>
+  </div>
 </div>
 
 <div class="card" id="placementStep">
-  <h3>Ťuknite na miesto podpisu:</h3>
+  <h3>Ťuknite na miesto vloženia:</h3>
   <div id="pdfContainer">
     <canvas id="pdfPreviewCanvas"></canvas>
     <div id="marker"></div>
@@ -60,8 +75,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="script.js?v=2.2"></script>
+<script src="script.js?v=2.5"></script>
 
 </body>
 </html>
-
