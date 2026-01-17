@@ -1,6 +1,12 @@
-const PHP_URL = "https://vas-server.sk/api/send_mail.php";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzMC4LVRrEHK0Q3UVODC8rDWzyh3NDclGOmzEKY2K4uS6Bohf_A0uxt6eAu5HD23_2d/exec";
+/**
+ * BlueMed Singer - Verzia 2.6
+ * Oprava: Landscape deformácia a dynamická výška podpisu
+ */
 
+const PHP_URL = "https://vas-server.sk/api/send_mail.php";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwxnQh7V2htRzjoZ32fveITzwYXh7hSZknC6ElnIBMDQ99NjYOk02fePrNrdAURCdZh/exec";
+
+// Inicializácia PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 const canvasSig = document.getElementById("signature");
@@ -8,9 +14,25 @@ const signaturePad = new SignaturePad(canvasSig);
 let pdfPos = { x: 50, y: 50 };
 let pdfDocPoints = { w: 0, h: 0 };
 
+// --- POMOCNÉ FUNKCIE ---
 function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
 window.onload = () => { checkOfflineQueue(); };
+
+// Reset plátna pri otočení mobilu, aby sa predišlo deformácii kresby
+window.addEventListener("resize", () => {
+    if (document.getElementById('sigPopup').style.display === 'flex') {
+        resizeSigCanvas();
+    }
+});
+
+function resizeSigCanvas() {
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvasSig.width = canvasSig.offsetWidth * ratio;
+    canvasSig.height = canvasSig.offsetHeight * ratio;
+    canvasSig.getContext("2d").scale(ratio, ratio);
+    signaturePad.clear(); 
+}
 
 async function checkOfflineQueue() {
     let queue = JSON.parse(localStorage.getItem('pdf_queue') || '[]');
@@ -22,6 +44,7 @@ async function checkOfflineQueue() {
     }
 }
 
+// --- OVLÁDANIE ---
 function openSignature() {
     const name = document.getElementById('signerName').value;
     const title = document.getElementById('signerTitle').value;
@@ -33,11 +56,7 @@ function openSignature() {
     document.getElementById('previewTitle').innerText = title || "";
     document.getElementById('sigPopup').style.display = 'flex';
     
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvasSig.width = canvasSig.offsetWidth * ratio;
-    canvasSig.height = canvasSig.offsetHeight * ratio;
-    canvasSig.getContext("2d").scale(ratio, ratio);
-    signaturePad.clear();
+    resizeSigCanvas();
 }
 
 function clearSig() { signaturePad.clear(); }
@@ -77,6 +96,7 @@ async function loadPreview() {
     };
 }
 
+// --- FINÁLNE GENEROVANIE ---
 async function signAndSend() {
     if (document.getElementById('marker').style.display === 'none') return alert("Ťuknite do PDF!");
     const submitBtn = document.getElementById('submitBtn');
@@ -88,15 +108,18 @@ async function signAndSend() {
         const page = pdfDoc.getPages()[0];
         const pngImage = await pdfDoc.embedPng(signaturePad.toDataURL());
 
-        const sigW = 120;
-        const sigH = 60;
+        // VÝPOČET POMERU STRÁN (Zabráni deformácii v PDF)
+        const aspectRatio = canvasSig.width / canvasSig.height;
+        const sigW = 120; // Fixná šírka podpisu
+        const sigH = sigW / aspectRatio; // Dynamická výška podľa kresby
         const padding = 15; // Medzera od kliknutého bodu
 
-        // 1. PODPIS (Vľavo od kliknutého bodu)
+        // 1. PODPIS (Vľavo od kliknutého bodu - stred kruhu)
         page.drawImage(pngImage, { 
             x: pdfPos.x - sigW - padding, 
             y: pdfPos.y - (sigH / 2), 
-            width: sigW, height: sigH 
+            width: sigW, 
+            height: sigH 
         });
 
         const name = document.getElementById('signerName').value;
@@ -104,13 +127,14 @@ async function signAndSend() {
 
         // 2. TEXTY (Vpravo od kliknutého bodu)
         const xText = pdfPos.x + padding;
-        const yMeno = pdfPos.y; // Zarovnané na stredovú líniu kliku
+        const yMeno = pdfPos.y; 
 
         page.drawText(name, { x: xText, y: yMeno, size: 10 });
         if (title) {
             page.drawText(title, { x: xText, y: yMeno - 12.5, size: 9 });
         }
 
+        // Dynamický názov súboru
         const originalName = file.name.replace(/\.[^/.]+$/, "");
         const newFileName = `${originalName}_podpisane.pdf`;
 
@@ -140,7 +164,7 @@ async function sendToServers(payload) {
             body: JSON.stringify(payload), signal: AbortSignal.timeout(5000)
         });
     } catch (e) {
+        // Failover na Google Apps Script
         await fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
     }
 }
-
