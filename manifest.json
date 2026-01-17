@@ -1,35 +1,28 @@
 {
   "short_name": "Singer",
-  "name": "BlueMed Singer",
+  "name": "Bluemed Singer",
   "icons": [
     {
       "src": "icon-192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
-    },
-    {
-      "src": "icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "maskable"
     }
   ],
   "start_url": "podpis.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0054a6",
   "share_target": {
     "action": "podpis.html?shared=1",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
-      "title": "title",
-      "text": "text",
+      "title": "name",
+      "text": "description",
+      "url": "link",
       "files": [
         {
           "name": "pdfFile",
-          "accept": ["application/pdf", ".pdf"]
+          "accept": ["application/pdf"]
         }
       ]
     }
