@@ -1,4 +1,4 @@
-const CACHE_NAME = 'singer-v2.7';
+const CACHE_NAME = 'singer-v2.8';
 const ASSETS = [
   'podpis.html',
   'script.js',
@@ -17,19 +17,10 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(clients.claim());
 });
 
-// 2. Zachytenie zdieľania (Share Target)
+// 2. Obsluha požiadaviek
 self.addEventListener('fetch', (event) => {
-  // Ak ide o POST požiadavku na našu action URL z manifestu
-  if (event.request.method === 'POST' && event.request.url.includes('podpis.html')) {
-    
-    // iOS vyžaduje pre Share Target presmerovanie s kódom 303
-    event.respondWith(
-      Response.redirect('podpis.html?shared=1', 303)
-    );
-    return;
-  }
-
-  // Bežné kešovanie pre offline režim
+  // POZNÁMKA: Sekcia pre POST (303 redirect) je dočasne vypnutá pre test GET metódy
+  
   event.respondWith(
     caches.match(event.request).then((res) => {
       return res || fetch(event.request);
